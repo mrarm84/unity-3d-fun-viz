@@ -50,7 +50,14 @@ public class ObjectSelector : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
         {
-            VisualizerEffect hitVis = hit.collider.gameObject.GetComponentInParent<VisualizerEffect>();
+            GameObject hitObject = hit.collider.gameObject;
+            VisualizerEffect hitVis = hitObject.GetComponentInParent<VisualizerEffect>();
+
+            // AUTO-INJECTION: Add the script if missing
+            if (hitVis == null) {
+                Debug.Log("<color=orange>[Visualizer] Auto-Injecting Effect into: " + hitObject.name + "</color>");
+                hitVis = hitObject.AddComponent<VisualizerEffect>();
+            }
 
             if (hitVis != currentVisualizer)
             {
@@ -86,7 +93,6 @@ public class ObjectSelector : MonoBehaviour
 
     void UpdateCursorState()
     {
-        // For visualizer, we usually lock cursor to the center
         Cursor.lockState = isSelectionModeActive ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !isSelectionModeActive;
     }
@@ -95,14 +101,10 @@ public class ObjectSelector : MonoBehaviour
     {
         if (isSelectionModeActive)
         {
-            // Simple crosshair in the middle
-            float size = 15;
+            float size = 20;
             float xMin = (Screen.width / 2) - (size / 2);
             float yMin = (Screen.height / 2) - (size / 2);
             GUI.Box(new Rect(xMin, yMin, size, size), "+");
         }
     }
 }
-
-public interface IHighlightable { void OnHoverStart(); void OnHoverEnd(); void OnClick(); }
-public interface IInteractable { void OnInteract(); }
