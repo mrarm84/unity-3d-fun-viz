@@ -23,13 +23,18 @@ public class HighlightEffect : MonoBehaviour, IHighlightable
 
     void Start()
     {
-        objRenderer = GetComponent<Renderer>();
+        objRenderer = GetComponentInChildren<Renderer>();
         if (objRenderer != null)
         {
             originalMaterials = objRenderer.sharedMaterials;
             glitchMaterials = new Material[originalMaterials.Length];
             
             if (glitchShader == null) glitchShader = Shader.Find("Custom/LocalGlitch");
+
+            if (glitchShader == null)
+            {
+                Debug.LogError("[HighlightEffect] Glitch Shader not found! Please check if LocalGlitch.shader is in the Assets folder.");
+            }
 
             for (int i = 0; i < originalMaterials.Length; i++)
             {
@@ -38,13 +43,16 @@ public class HighlightEffect : MonoBehaviour, IHighlightable
                 glitchMaterials[i].SetFloat("_ChromaOffset", hoverChromaOffset);
             }
         }
+        else
+        {
+            Debug.LogError("[HighlightEffect] NO RENDERER! Attach this script to an object with a MeshRenderer.");
+        }
     }
 
     void Update()
     {
         if (objRenderer == null || isFlashing) return;
 
-        // Smoothly transition between normal and glitch materials
         float targetGlitch = isHovering ? hoverGlitchAmount : 0f;
         currentGlitchAmount = Mathf.Lerp(currentGlitchAmount, targetGlitch, Time.deltaTime * lerpSpeed);
 
@@ -64,6 +72,7 @@ public class HighlightEffect : MonoBehaviour, IHighlightable
 
     public void OnHoverStart()
     {
+        Debug.Log("<color=cyan>[HighlightEffect] HOVERING: " + gameObject.name + "</color>");
         isHovering = true;
     }
 
@@ -74,13 +83,13 @@ public class HighlightEffect : MonoBehaviour, IHighlightable
 
     public void OnClick()
     {
+        Debug.Log("<color=white>[HighlightEffect] FLASH: " + gameObject.name + "</color>");
         if (!isFlashing) StartCoroutine(FlashAndGlitch());
     }
 
     private IEnumerator FlashAndGlitch()
     {
         isFlashing = true;
-        // Maximum glitch on click
         foreach (var mat in glitchMaterials)
         {
             mat.SetFloat("_GlitchAmount", 1.0f);

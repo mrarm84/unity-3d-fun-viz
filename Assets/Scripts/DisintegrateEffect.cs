@@ -10,12 +10,12 @@ public class DisintegrateEffect : MonoBehaviour, IInteractable
     public int fragmentCount = 500;
     public float fragmentLifeTime = 3f;
     public float explosionForce = 5f;
-    public Vector3 fragmentScale = new Vector3(0.1f, 0.1f, 0.1f);
+    public float gravityMultiplier = 1f;
 
     [Header("Dissolve Settings")]
     public Shader dissolveShader;
     public Texture2D noiseTexture;
-    public float dissolveDuration = 1.5f;
+    public float dissolveDuration = 1.0f;
     [ColorUsage(true, true)]
     public Color edgeColor = Color.cyan;
 
@@ -30,14 +30,13 @@ public class DisintegrateEffect : MonoBehaviour, IInteractable
 
     void Start()
     {
-        // Find Global Volume
         globalVolume = Object.FindAnyObjectByType<Volume>();
         if (globalVolume != null && globalVolume.profile != null)
         {
             globalVolume.profile.TryGet(out chromaticAberration);
         }
 
-        Renderer r = GetComponent<Renderer>();
+        Renderer r = GetComponentInChildren<Renderer>();
         if (r != null) materials = r.materials;
 
         if (dissolveShader == null) dissolveShader = Shader.Find("Ultimate 10+ Shaders/Dissolve");
@@ -45,23 +44,19 @@ public class DisintegrateEffect : MonoBehaviour, IInteractable
 
     public void OnInteract()
     {
-        if (!isDisintegrating)
-        {
-            StartCoroutine(ExplodeAndDissolve());
-        }
+        Debug.Log("<color=red>[DisintegrateEffect] OnInteract called for: " + gameObject.name + "</color>");
+        if (!isDisintegrating) StartCoroutine(ExplodeAndDissolve());
     }
 
     private IEnumerator ExplodeAndDissolve()
     {
         isDisintegrating = true;
 
-        // 1. Post Process Pulse
         if (chromaticAberration != null) StartCoroutine(PulseChromatic());
 
-        // 2. Spawn Fragments
         SpawnFragments();
 
-        // 3. Hide original object or dissolve it
+        // Dissolve the original
         if (materials != null && dissolveShader != null)
         {
             foreach (var mat in materials)
@@ -84,58 +79,49 @@ public class DisintegrateEffect : MonoBehaviour, IInteractable
             }
         }
 
-        // 4. Finally destroy the original object
         Destroy(gameObject);
     }
 
     private void SpawnFragments()
     {
-        Mesh mesh = null;
-        if (GetComponent<MeshFilter>() != null) mesh = GetComponent<MeshFilter>().sharedMesh;
-        else if (GetComponent<SkinnedMeshRenderer>() != null) mesh = GetComponent<SkinnedMeshRenderer>().sharedMesh;
+        Renderer r = GetComponentInChildren<Renderer>();
+        if (r == null) {
+            Debug.LogError("[DisintegrateEffect] No Renderer found to spawn fragments from!");
+            return;
+        }
 
-        if (mesh == null) return;
-
-        Bounds bounds = mesh.bounds;
+        Bounds bounds = r.bounds;
+        Vector3 center = bounds.center;
         Vector3 size = bounds.size;
-        Vector3 center = transform.TransformPoint(bounds.center);
 
-        // Spawn fragment pieces
+        Debug.Log("[DisintegrateEffect] Spawning " + fragmentCount + " pieces at " + center);
+
         for (int i = 0; i < fragmentCount; i++)
         {
-            // Random point within bounds
             Vector3 randomPos = new Vector3(
                 Random.Range(-size.x / 2f, size.x / 2f),
                 Random.Range(-size.y / 2f, size.y / 2f),
                 Random.Range(-size.z / 2f, size.z / 2f)
             );
             
-            // World position relative to current transform
-            Vector3 spawnPos = transform.TransformPoint(bounds.center + randomPos);
-
-            GameObject fragment = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            fragment.transform.position = spawnPos;
-            fragment.transform.localScale = Vector3.Scale(transform.lossyScale, fragmentScale);
-            fragment.transform.rotation = Random.rotation;
-
-            // Inherit Color if possible
-            Renderer fragRen = fragment.GetComponent<Renderer>();
-            if (fragRen != null && materials != null && materials.Length > 0)
-            {
-                fragRen.material.color = materials[0].color;
-            }
+            GameObject frag = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frag.transform.position = center + randomPos;
+            frag.transform.localScale = Vector3.one * 0.1f;
+            
+            // Set Color
+            if (materials != null && materials.Length > 0)
+                frag.GetComponent<Renderer>().material.color = materials[0].color;
 
             // Physics
-            Rigidbody rb = fragment.AddComponent<Rigidbody>();
-            rb.mass = 0.1f;
-            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            Rigidbody rb = frag.AddComponent<Rigidbody>();
+            rb.mass = 0.05f;
+            rb.useGravity = true;
             
-            // Explosion force away from center
-            Vector3 forceDir = (spawnPos - center).normalized;
-            rb.AddForce(forceDir * explosionForce, ForceMode.Impulse);
+            // Explosion
+            Vector3 diff = frag.transform.position - center;
+            rb.AddForce(diff.normalized * explosionForce, ForceMode.Impulse);
 
-            // Cleanup
-            Destroy(fragment, fragmentLifeTime + Random.Range(0f, 1f));
+            Destroy(frag, fragmentLifeTime + Random.Range(0f, 1f));
         }
     }
 
@@ -148,8 +134,7 @@ public class DisintegrateEffect : MonoBehaviour, IInteractable
         {
             elapsed += Time.deltaTime;
             float progress = elapsed / chromaticDuration;
-            float curve = Mathf.Sin(progress * Mathf.PI); 
-            chromaticAberration.intensity.Override(Mathf.Lerp(original, chromaticIntensity, curve));
+            chromaticAberration.intensity.Override(Mathf.Lerp(original, chromaticIntensity, Mathf.Sin(progress * Mathf.PI)));
             yield return null;
         }
         chromaticAberration.intensity.Override(original);

@@ -85,6 +85,7 @@
     <None Include="Assets\Ultimate 10 Plus Shaders\Shaders\Depth Mask Edge Detection.shader" />
     <None Include="Assets\Ultimate 10 Plus Shaders\Shaders\Ocean.shader" />
     <None Include="Assets\Ultimate 10 Plus Shaders\Shaders\Dissolve.shader" />
+    <None Include="Assets\Scripts\LocalGlitch.shader" />
     <None Include="Assets\Ultimate 10 Plus Shaders\Shaders\Plasma.shader" />
     <None Include="Assets\Ultimate 10 Plus Shaders\Shaders\Outline.shader" />
     <None Include="Assets\Ultimate 10 Plus Shaders\Shaders\Plexus\Plexus Line.shader" />

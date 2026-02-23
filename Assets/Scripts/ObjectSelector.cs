@@ -69,7 +69,8 @@ public class ObjectSelector : MonoBehaviour
                 ClearHover();
                 currentHoveredObject = hitObject;
                 
-                IHighlightable highlightable = currentHoveredObject.GetComponent<IHighlightable>();
+                // Look in parent in case the script is on the root but collider is on a child
+                IHighlightable highlightable = currentHoveredObject.GetComponentInParent<IHighlightable>();
                 if (highlightable != null)
                 {
                     highlightable.OnHoverStart();
@@ -86,7 +87,7 @@ public class ObjectSelector : MonoBehaviour
     {
         if (currentHoveredObject != null)
         {
-            IHighlightable highlightable = currentHoveredObject.GetComponent<IHighlightable>();
+            IHighlightable highlightable = currentHoveredObject.GetComponentInParent<IHighlightable>();
             if (highlightable != null) highlightable.OnHoverEnd();
             currentHoveredObject = null;
         }
@@ -109,12 +110,12 @@ public class ObjectSelector : MonoBehaviour
             GameObject clickedObject = hit.collider.gameObject;
             Debug.Log("<color=yellow>[ObjectSelector] HIT: " + clickedObject.name + "</color>");
 
-            IHighlightable h = clickedObject.GetComponent<IHighlightable>();
+            IHighlightable h = clickedObject.GetComponentInParent<IHighlightable>();
             if (h != null) h.OnClick();
 
-            IInteractable i = clickedObject.GetComponent<IInteractable>();
+            IInteractable i = clickedObject.GetComponentInParent<IInteractable>();
             if (i != null) i.OnInteract();
-            else Debug.LogWarning("[ObjectSelector] " + clickedObject.name + " has no DisintegrateEffect script!");
+            else Debug.LogWarning("[ObjectSelector] " + clickedObject.name + " (or its parents) has no interaction script!");
         }
         else
         {
