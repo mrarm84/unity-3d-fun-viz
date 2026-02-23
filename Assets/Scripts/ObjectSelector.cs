@@ -108,3 +108,15 @@ public class ObjectSelector : MonoBehaviour
         }
     }
 }
+
+public interface IHighlightable
+{
+    void OnHoverStart();
+    void OnHoverEnd();
+    void OnClick();
+}
+
+public interface IInteractable
+{
+    void OnInteract();
+}
