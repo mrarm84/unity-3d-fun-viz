@@ -27,20 +27,74 @@ public class ObjectSelector : MonoBehaviour
         UpdateCursorState();
     }
 
+    private GameObject currentHoveredObject;
+
     void Update()
     {
         // Toggle Selection Mode with 'M'
         if (Keyboard.current[toggleKey].wasPressedThisFrame)
         {
             isSelectionModeActive = !isSelectionModeActive;
-            Debug.Log($"Selection Mode: {(isSelectionModeActive ? "ENABLED" : "DISABLED")}");
+            Debug.Log($"Selection Mode: {(isSelectionModeActive ? \"ENABLED\" : \"DISABLED\")}");
             UpdateCursorState();
+
+            // Clear hover if we disable mode
+            if (!isSelectionModeActive && currentHoveredObject != null)
+            {
+                ClearHover();
+            }
         }
 
-        // Handle Clicking in Selection Mode
-        if (isSelectionModeActive && Mouse.current.leftButton.wasPressedThisFrame)
+        if (isSelectionModeActive)
         {
-            HandleSelection();
+            HandleHover();
+
+            // Handle Clicking in Selection Mode
+            if (Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                HandleSelection();
+            }
+        }
+    }
+
+    void HandleHover()
+    {
+        Vector2 mousePos = Mouse.current.position.ReadValue();
+        Ray ray = mainCamera.ScreenPointToRay(mousePos);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
+        {
+            GameObject hitObject = hit.collider.gameObject;
+
+            if (hitObject != currentHoveredObject)
+            {
+                ClearHover();
+                currentHoveredObject = hitObject;
+                
+                IHighlightable highlightable = currentHoveredObject.GetComponent<IHighlightable>();
+                if (highlightable != null)
+                {
+                    highlightable.OnHoverStart();
+                }
+            }
+        }
+        else
+        {
+            ClearHover();
+        }
+    }
+
+    void ClearHover()
+    {
+        if (currentHoveredObject != null)
+        {
+            IHighlightable highlightable = currentHoveredObject.GetComponent<IHighlightable>();
+            if (highlightable != null)
+            {
+                highlightable.OnHoverEnd();
+            }
+            currentHoveredObject = null;
         }
     }
 
@@ -54,7 +108,6 @@ public class ObjectSelector : MonoBehaviour
         else
         {
             // Lock back if needed (typical for first-person games)
-            // If your game is top-down, you might want to remove this line.
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
@@ -69,20 +122,30 @@ public class ObjectSelector : MonoBehaviour
         if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
         {
             GameObject clickedObject = hit.collider.gameObject;
-            Debug.Log($"[ObjectSelector] Clicked on: {clickedObject.name} at {hit.point}");
+            Debug.Log($"[ObjectSelector] Clicked on: {clickedObject.name}");
 
-            // Optional: Trigger a script on the clicked object
+            // Trigger Highlight Click effect
+            IHighlightable highlightable = clickedObject.GetComponent<IHighlightable>();
+            if (highlightable != null)
+            {
+                highlightable.OnClick();
+            }
+
+            // Trigger interaction/disintegrate
             IInteractable interactable = clickedObject.GetComponent<IInteractable>();
             if (interactable != null)
             {
                 interactable.OnInteract();
             }
         }
-        else
-        {
-            Debug.Log("[ObjectSelector] Clicked on empty space.");
-        }
     }
+}
+
+public interface IHighlightable
+{
+    void OnHoverStart();
+    void OnHoverEnd();
+    void OnClick();
 }
 
 // Interface for objects you want to interact with specifically
