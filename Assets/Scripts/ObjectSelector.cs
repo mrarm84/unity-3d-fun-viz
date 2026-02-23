@@ -5,27 +5,23 @@ public class ObjectSelector : MonoBehaviour
 {
     [Header("Input Keys")]
     public Key toggleKey = Key.M;
+    public Key nKey = Key.N;
+    public Key bKey = Key.B;
 
     [Header("Selection Mode")]
     public bool isSelectionModeActive = false;
     
     [Header("Raycast Settings")]
-    public float maxDistance = 1000f; // Increased distance
+    public float maxDistance = 1000f;
     public LayerMask layerMask = ~0; 
 
     private Camera mainCamera;
-    private GameObject currentHoveredObject;
+    private VisualizerEffect currentVisualizer;
 
     void Start()
     {
         mainCamera = GetComponent<Camera>();
         if (mainCamera == null) mainCamera = Camera.main;
-        
-        if (mainCamera == null)
-        {
-            Debug.LogError("[ObjectSelector] NO CAMERA FOUND! Attach this script to your Camera or tag your camera as 'MainCamera'.");
-        }
-        
         UpdateCursorState();
     }
 
@@ -34,92 +30,76 @@ public class ObjectSelector : MonoBehaviour
         if (Keyboard.current[toggleKey].wasPressedThisFrame)
         {
             isSelectionModeActive = !isSelectionModeActive;
-            Debug.Log("<color=cyan>[ObjectSelector] Selection Mode: " + (isSelectionModeActive ? "ENABLED" : "DISABLED") + "</color>");
+            Debug.Log("<color=cyan>[Visualizer] Mode: " + (isSelectionModeActive ? "ENABLED" : "DISABLED") + "</color>");
             UpdateCursorState();
-
-            if (!isSelectionModeActive) ClearHover();
         }
 
         if (isSelectionModeActive)
         {
-            HandleHover();
-
-            if (Mouse.current.leftButton.wasPressedThisFrame)
-            {
-                HandleSelection();
-            }
+            HandleInteraction();
         }
     }
 
-    void HandleHover()
+    void HandleInteraction()
     {
-        Vector2 mousePos = Mouse.current.position.ReadValue();
-        Ray ray = mainCamera.ScreenPointToRay(mousePos);
+        // Use center of screen (Crosshair mode)
+        Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         RaycastHit hit;
 
-        // Visual debug line in Scene View
-        Debug.DrawRay(ray.origin, ray.direction * 10f, Color.red);
+        Debug.DrawRay(ray.origin, ray.direction * 10f, Color.green);
 
         if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
         {
-            GameObject hitObject = hit.collider.gameObject;
+            VisualizerEffect hitVis = hit.collider.gameObject.GetComponentInParent<VisualizerEffect>();
 
-            if (hitObject != currentHoveredObject)
+            if (hitVis != currentVisualizer)
             {
-                ClearHover();
-                currentHoveredObject = hitObject;
+                if (currentVisualizer != null) currentVisualizer.OnHoverEnd();
+                currentVisualizer = hitVis;
+                if (currentVisualizer != null) currentVisualizer.OnHoverStart();
+            }
+
+            if (currentVisualizer != null)
+            {
+                // Left Click: Slow Splash
+                if (Mouse.current.leftButton.wasPressedThisFrame) currentVisualizer.OnInteract();
                 
-                // Look in parent in case the script is on the root but collider is on a child
-                IHighlightable highlightable = currentHoveredObject.GetComponentInParent<IHighlightable>();
-                if (highlightable != null)
-                {
-                    highlightable.OnHoverStart();
-                }
+                // Right Click: Color Toggle
+                if (Mouse.current.rightButton.wasPressedThisFrame) currentVisualizer.OnRightClick();
+                
+                // N Key: Blur Toggle
+                if (Keyboard.current[nKey].wasPressedThisFrame) currentVisualizer.OnKeyN();
+                
+                // B Key: Invert Toggle
+                if (Keyboard.current[bKey].wasPressedThisFrame) currentVisualizer.OnKeyB();
             }
         }
         else
         {
-            ClearHover();
-        }
-    }
-
-    void ClearHover()
-    {
-        if (currentHoveredObject != null)
-        {
-            IHighlightable highlightable = currentHoveredObject.GetComponentInParent<IHighlightable>();
-            if (highlightable != null) highlightable.OnHoverEnd();
-            currentHoveredObject = null;
+            if (currentVisualizer != null)
+            {
+                currentVisualizer.OnHoverEnd();
+                currentVisualizer = null;
+            }
         }
     }
 
     void UpdateCursorState()
     {
-        Cursor.lockState = isSelectionModeActive ? CursorLockMode.None : CursorLockMode.Locked;
-        Cursor.visible = isSelectionModeActive;
+        // For visualizer, we usually lock cursor to the center
+        Cursor.lockState = isSelectionModeActive ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !isSelectionModeActive;
     }
 
-    void HandleSelection()
+    void OnGUI()
     {
-        Vector2 mousePos = Mouse.current.position.ReadValue();
-        Ray ray = mainCamera.ScreenPointToRay(mousePos);
-        RaycastHit hit;
-
-        if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
+        if (isSelectionModeActive)
         {
-            GameObject clickedObject = hit.collider.gameObject;
-            Debug.Log("<color=yellow>[ObjectSelector] HIT: " + clickedObject.name + "</color>");
-
-            IHighlightable h = clickedObject.GetComponentInParent<IHighlightable>();
-            if (h != null) h.OnClick();
-
-            IInteractable i = clickedObject.GetComponentInParent<IInteractable>();
-            if (i != null) i.OnInteract();
-            else Debug.LogWarning("[ObjectSelector] " + clickedObject.name + " (or its parents) has no interaction script!");
-        }
-        else
-        {
-            Debug.Log("[ObjectSelector] Missed. Clicked empty space.");
+            // Simple crosshair in the middle
+            float size = 15;
+            float xMin = (Screen.width / 2) - (size / 2);
+            float yMin = (Screen.height / 2) - (size / 2);
+            GUI.Box(new Rect(xMin, yMin, size, size), "+");
         }
     }
 }
