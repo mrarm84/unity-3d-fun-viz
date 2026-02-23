@@ -10,46 +10,40 @@ public class ObjectSelector : MonoBehaviour
     public bool isSelectionModeActive = false;
     
     [Header("Raycast Settings")]
-    public float maxDistance = 100f;
-    public LayerMask layerMask = ~0; // Select everything by default
+    public float maxDistance = 1000f; // Increased distance
+    public LayerMask layerMask = ~0; 
 
     private Camera mainCamera;
+    private GameObject currentHoveredObject;
 
     void Start()
     {
-        mainCamera = Camera.main;
+        mainCamera = GetComponent<Camera>();
+        if (mainCamera == null) mainCamera = Camera.main;
+        
         if (mainCamera == null)
         {
-            Debug.LogError("ObjectSelector: No Main Camera found! Please tag your camera as 'MainCamera'.");
+            Debug.LogError("[ObjectSelector] NO CAMERA FOUND! Attach this script to your Camera or tag your camera as 'MainCamera'.");
         }
         
-        // Ensure cursor is locked/unlocked based on initial mode
         UpdateCursorState();
     }
 
-    private GameObject currentHoveredObject;
-
     void Update()
     {
-        // Toggle Selection Mode with 'M'
         if (Keyboard.current[toggleKey].wasPressedThisFrame)
         {
             isSelectionModeActive = !isSelectionModeActive;
-            Debug.Log($"Selection Mode: {(isSelectionModeActive ? \"ENABLED\" : \"DISABLED\")}");
+            Debug.Log("<color=cyan>[ObjectSelector] Selection Mode: " + (isSelectionModeActive ? "ENABLED" : "DISABLED") + "</color>");
             UpdateCursorState();
 
-            // Clear hover if we disable mode
-            if (!isSelectionModeActive && currentHoveredObject != null)
-            {
-                ClearHover();
-            }
+            if (!isSelectionModeActive) ClearHover();
         }
 
         if (isSelectionModeActive)
         {
             HandleHover();
 
-            // Handle Clicking in Selection Mode
             if (Mouse.current.leftButton.wasPressedThisFrame)
             {
                 HandleSelection();
@@ -62,6 +56,9 @@ public class ObjectSelector : MonoBehaviour
         Vector2 mousePos = Mouse.current.position.ReadValue();
         Ray ray = mainCamera.ScreenPointToRay(mousePos);
         RaycastHit hit;
+
+        // Visual debug line in Scene View
+        Debug.DrawRay(ray.origin, ray.direction * 10f, Color.red);
 
         if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
         {
@@ -90,27 +87,15 @@ public class ObjectSelector : MonoBehaviour
         if (currentHoveredObject != null)
         {
             IHighlightable highlightable = currentHoveredObject.GetComponent<IHighlightable>();
-            if (highlightable != null)
-            {
-                highlightable.OnHoverEnd();
-            }
+            if (highlightable != null) highlightable.OnHoverEnd();
             currentHoveredObject = null;
         }
     }
 
     void UpdateCursorState()
     {
-        if (isSelectionModeActive)
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-        }
-        else
-        {
-            // Lock back if needed (typical for first-person games)
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
+        Cursor.lockState = isSelectionModeActive ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = isSelectionModeActive;
     }
 
     void HandleSelection()
@@ -122,34 +107,21 @@ public class ObjectSelector : MonoBehaviour
         if (Physics.Raycast(ray, out hit, maxDistance, layerMask))
         {
             GameObject clickedObject = hit.collider.gameObject;
-            Debug.Log($"[ObjectSelector] Clicked on: {clickedObject.name}");
+            Debug.Log("<color=yellow>[ObjectSelector] HIT: " + clickedObject.name + "</color>");
 
-            // Trigger Highlight Click effect
-            IHighlightable highlightable = clickedObject.GetComponent<IHighlightable>();
-            if (highlightable != null)
-            {
-                highlightable.OnClick();
-            }
+            IHighlightable h = clickedObject.GetComponent<IHighlightable>();
+            if (h != null) h.OnClick();
 
-            // Trigger interaction/disintegrate
-            IInteractable interactable = clickedObject.GetComponent<IInteractable>();
-            if (interactable != null)
-            {
-                interactable.OnInteract();
-            }
+            IInteractable i = clickedObject.GetComponent<IInteractable>();
+            if (i != null) i.OnInteract();
+            else Debug.LogWarning("[ObjectSelector] " + clickedObject.name + " has no DisintegrateEffect script!");
+        }
+        else
+        {
+            Debug.Log("[ObjectSelector] Missed. Clicked empty space.");
         }
     }
 }
 
-public interface IHighlightable
-{
-    void OnHoverStart();
-    void OnHoverEnd();
-    void OnClick();
-}
-
-// Interface for objects you want to interact with specifically
-public interface IInteractable
-{
-    void OnInteract();
-}
+public interface IHighlightable { void OnHoverStart(); void OnHoverEnd(); void OnClick(); }
+public interface IInteractable { void OnInteract(); }

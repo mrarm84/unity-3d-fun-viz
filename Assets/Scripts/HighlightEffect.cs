@@ -3,59 +3,62 @@ using System.Collections;
 
 public class HighlightEffect : MonoBehaviour, IHighlightable
 {
-    [Header("Hover Settings")]
-    [ColorUsage(true, true)]
-    public Color hoverEmissionColor = new Color(0.2f, 0.2f, 0.2f, 1f);
-    public float lerpSpeed = 10f;
+    [Header("Hover Glitch Settings")]
+    public Shader glitchShader;
+    public float hoverGlitchAmount = 0.5f;
+    public float hoverChromaOffset = 0.05f;
+    public float lerpSpeed = 5f;
 
-    [Header("Click Settings")]
+    [Header("Click Flash")]
     [ColorUsage(true, true)]
-    public Color clickFlashColor = new Color(1f, 1f, 1f, 1f);
-    public float flashDuration = 0.1f;
+    public Color clickFlashColor = Color.white;
+    public float flashDuration = 0.15f;
 
-    private Material[] materials;
-    private Color[] originalEmissionColors;
+    private Material[] originalMaterials;
+    private Material[] glitchMaterials;
+    private Renderer objRenderer;
     private bool isHovering = false;
     private bool isFlashing = false;
+    private float currentGlitchAmount = 0f;
 
     void Start()
     {
-        Renderer renderer = GetComponent<Renderer>();
-        if (renderer != null)
+        objRenderer = GetComponent<Renderer>();
+        if (objRenderer != null)
         {
-            materials = renderer.materials;
-            originalEmissionColors = new Color[materials.Length];
+            originalMaterials = objRenderer.sharedMaterials;
+            glitchMaterials = new Material[originalMaterials.Length];
             
-            for (int i = 0; i < materials.Length; i++)
+            if (glitchShader == null) glitchShader = Shader.Find("Custom/LocalGlitch");
+
+            for (int i = 0; i < originalMaterials.Length; i++)
             {
-                // Enable emission keyword if not already enabled
-                materials[i].EnableKeyword("_EMISSION");
-                
-                // Try to get existing emission color
-                if (materials[i].HasProperty("_EmissionColor"))
-                {
-                    originalEmissionColors[i] = materials[i].GetColor("_EmissionColor");
-                }
-                else
-                {
-                    originalEmissionColors[i] = Color.black;
-                }
+                glitchMaterials[i] = new Material(glitchShader);
+                glitchMaterials[i].CopyPropertiesFromMaterial(originalMaterials[i]);
+                glitchMaterials[i].SetFloat("_ChromaOffset", hoverChromaOffset);
             }
         }
     }
 
     void Update()
     {
-        if (isFlashing || materials == null) return;
+        if (objRenderer == null || isFlashing) return;
 
-        // Smoothly lerp emission color for hover effect
-        Color targetColor = isHovering ? hoverEmissionColor : Color.black; // Using black as base if no original was set
-        
-        for (int i = 0; i < materials.Length; i++)
+        // Smoothly transition between normal and glitch materials
+        float targetGlitch = isHovering ? hoverGlitchAmount : 0f;
+        currentGlitchAmount = Mathf.Lerp(currentGlitchAmount, targetGlitch, Time.deltaTime * lerpSpeed);
+
+        if (currentGlitchAmount > 0.01f)
         {
-            Color currentEmission = materials[i].GetColor("_EmissionColor");
-            Color baseColor = isHovering ? hoverEmissionColor : originalEmissionColors[i];
-            materials[i].SetColor("_EmissionColor", Color.Lerp(currentEmission, baseColor, Time.deltaTime * lerpSpeed));
+            objRenderer.materials = glitchMaterials;
+            foreach (var mat in glitchMaterials)
+            {
+                mat.SetFloat("_GlitchAmount", currentGlitchAmount);
+            }
+        }
+        else
+        {
+            objRenderer.materials = originalMaterials;
         }
     }
 
@@ -71,25 +74,25 @@ public class HighlightEffect : MonoBehaviour, IHighlightable
 
     public void OnClick()
     {
-        if (!isFlashing)
-        {
-            StartCoroutine(FlashRoutine());
-        }
+        if (!isFlashing) StartCoroutine(FlashAndGlitch());
     }
 
-    private IEnumerator FlashRoutine()
+    private IEnumerator FlashAndGlitch()
     {
         isFlashing = true;
-        
-        // Instant flash to bright color
-        for (int i = 0; i < materials.Length; i++)
+        // Maximum glitch on click
+        foreach (var mat in glitchMaterials)
         {
-            materials[i].SetColor("_EmissionColor", clickFlashColor);
+            mat.SetFloat("_GlitchAmount", 1.0f);
+            mat.SetColor("_Color", clickFlashColor);
         }
-
+        
         yield return new WaitForSeconds(flashDuration);
         
+        foreach (var mat in glitchMaterials)
+        {
+            mat.SetColor("_Color", Color.white);
+        }
         isFlashing = false;
-        // The Update loop will naturally lerp back to original or hover color
     }
 }
